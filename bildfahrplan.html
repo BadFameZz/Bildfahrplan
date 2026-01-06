@@ -2,22 +2,29 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Bildfahrplan-Generator</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   background: #f0f2f5;
-  min-height: 100vh;
+  touch-action: manipulation;
 }
 .container {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   padding: 12px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 .panel-left {
   flex: 0 0 340px;
@@ -25,18 +32,21 @@ body {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-  max-height: 100vh;
+  height: calc(100vh - 24px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .panel-right {
   flex: 1;
-  min-width: 500px;
+  min-width: 400px;
   background: #fff;
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 24px);
+  overflow: hidden;
 }
 h2 { font-size: 18px; margin-bottom: 12px; color: #1a1a2e; font-weight: 600; }
 h3 { font-size: 14px; margin: 16px 0 10px; color: #444; border-bottom: 2px solid #e0e0e0; padding-bottom: 6px; font-weight: 600; }
@@ -46,9 +56,10 @@ textarea, input, select {
   padding: 10px;
   border: 1px solid #d0d0d0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 16px;
   margin-bottom: 12px;
   transition: border-color 0.2s;
+  -webkit-appearance: none;
 }
 textarea:focus, input:focus, select:focus {
   outline: none;
@@ -60,22 +71,24 @@ input[type="text"], input[type="time"] { width: 100%; }
 .row > * { flex: 1; }
 .btn {
   display: inline-block;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   margin: 4px;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-.btn:active { transform: translateY(0); }
+.btn:active { transform: translateY(0); background-filter: brightness(0.9); }
 .btn-primary { background: #007bff; color: #fff; }
 .btn-success { background: #28a745; color: #fff; }
 .btn-warning { background: #fd7e14; color: #fff; }
 .btn-danger { background: #dc3545; color: #fff; }
 .btn-info { background: #17a2b8; color: #fff; }
+.btn-secondary { background: #6c757d; color: #fff; }
 .buttons { margin: 12px 0; display: flex; flex-wrap: wrap; }
 .zug-container {
   background: #fafbfc;
@@ -86,15 +99,15 @@ input[type="text"], input[type="time"] { width: 100%; }
 }
 .zug-header { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .zug-header input { margin-bottom: 0; }
-.zug-header .btn { margin: 0; padding: 6px 10px; font-size: 14px; }
+.zug-header .btn { margin: 0; padding: 8px 12px; font-size: 16px; }
 .station-times {
   display: grid;
-  grid-template-columns: 1fr 80px 80px;
+  grid-template-columns: 1fr 90px 90px;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
+  font-size: 13px;
   background: #fff;
-  padding: 8px;
+  padding: 10px;
   border-radius: 6px;
   border: 1px solid #eee;
 }
@@ -111,10 +124,15 @@ input[type="text"], input[type="time"] { width: 100%; }
   font-size: 11px;
   text-transform: uppercase;
 }
-.station-times input { padding: 6px; font-size: 12px; margin-bottom: 0; }
+.station-times input {
+  padding: 8px;
+  font-size: 14px;
+  margin-bottom: 0;
+  min-height: 40px;
+}
 .canvas-wrapper {
   flex: 1;
-  min-height: 500px;
+  min-height: 300px;
   position: relative;
   border: 2px solid #e0e0e0;
   border-radius: 6px;
@@ -125,7 +143,6 @@ input[type="text"], input[type="time"] { width: 100%; }
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 500px;
 }
 #status {
   margin-top: 12px;
@@ -134,41 +151,78 @@ input[type="text"], input[type="time"] { width: 100%; }
   border-radius: 6px;
   font-size: 12px;
   color: #333;
-  max-height: 100px;
+  max-height: 80px;
   overflow-y: auto;
   border: 1px solid #e9ecef;
   font-family: monospace;
+  flex-shrink: 0;
 }
 .status-ok { color: #28a745; font-weight: 500; }
 .status-warn { color: #dc3545; }
+.status-saved { color: #17a2b8; font-size: 11px; margin-left: 10px; }
 .legend {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 10px;
-  padding: 8px;
+  padding: 10px;
   background: #f8f9fa;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .legend-color {
-  width: 20px;
-  height: 3px;
+  width: 24px;
+  height: 4px;
   border-radius: 2px;
 }
+.save-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: #28a745;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+.save-indicator.show { opacity: 1; }
 @media (max-width: 900px) {
-  .container { flex-direction: column; }
-  .panel-left { flex: none; max-height: none; }
-  .panel-right { min-width: 100%; }
+  .container {
+    flex-direction: column;
+    height: auto;
+    overflow-y: auto;
+  }
+  .panel-left {
+    flex: none;
+    height: auto;
+    max-height: none;
+  }
+  .panel-right {
+    min-width: 100%;
+    height: 500px;
+    flex: none;
+  }
+}
+@media (min-width: 901px) and (max-height: 600px) {
+  .panel-left, .panel-right {
+    height: calc(100vh - 24px);
+  }
 }
 </style>
 </head>
 <body>
+<div class="save-indicator" id="saveIndicator">Gespeichert</div>
+
 <div class="container">
   <div class="panel-left">
     <h2>Bildfahrplan-Generator</h2>
@@ -207,11 +261,11 @@ input[type="text"], input[type="time"] { width: 100%; }
     </div>
 
     <div class="buttons">
-      <button class="btn btn-primary" onclick="addTrain()">+ Zug hinzufügen</button>
-      <button class="btn btn-info" onclick="loadExample()">Beispiel laden</button>
-      <button class="btn btn-danger" onclick="clearAll()">Alles leeren</button>
-      <button class="btn btn-warning" onclick="draw()">Neu zeichnen</button>
-      <button class="btn btn-success" onclick="exportPNG()">PNG exportieren</button>
+      <button class="btn btn-primary" onclick="addTrain()">+ Zug</button>
+      <button class="btn btn-info" onclick="loadExample()">Beispiel</button>
+      <button class="btn btn-danger" onclick="clearAll()">Leeren</button>
+      <button class="btn btn-warning" onclick="draw()">Zeichnen</button>
+      <button class="btn btn-success" onclick="exportPNG()">PNG</button>
     </div>
 
     <div class="legend">
@@ -239,10 +293,12 @@ input[type="text"], input[type="time"] { width: 100%; }
 (function() {
   'use strict';
 
+  var STORAGE_KEY = 'bildfahrplan_data_v1';
   var trains = [];
   var drawCounter = 0;
   var canvas, ctx;
   var dpr = 1;
+  var saveTimeout = null;
 
   var trainColors = {
     'ICE': '#c62828',
@@ -253,6 +309,78 @@ input[type="text"], input[type="time"] { width: 100%; }
     'S': '#f9a825',
     'default': '#7b1fa2'
   };
+
+  // ========== SPEICHERN / LADEN ==========
+
+  function saveData() {
+    try {
+      var data = {
+        stations: document.getElementById('stations').value,
+        timeStart: document.getElementById('timeStart').value,
+        timeEnd: document.getElementById('timeEnd').value,
+        gridMinutes: document.getElementById('gridMinutes').value,
+        showLabels: document.getElementById('showLabels').value,
+        trains: trains,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      showSaveIndicator();
+    } catch (e) {
+      console.warn('Speichern fehlgeschlagen:', e);
+    }
+  }
+
+  function loadData() {
+    try {
+      var json = localStorage.getItem(STORAGE_KEY);
+      if (!json) return false;
+
+      var data = JSON.parse(json);
+
+      if (data.stations) {
+        document.getElementById('stations').value = data.stations;
+      }
+      if (data.timeStart) {
+        document.getElementById('timeStart').value = data.timeStart;
+      }
+      if (data.timeEnd) {
+        document.getElementById('timeEnd').value = data.timeEnd;
+      }
+      if (data.gridMinutes) {
+        document.getElementById('gridMinutes').value = data.gridMinutes;
+      }
+      if (data.showLabels) {
+        document.getElementById('showLabels').value = data.showLabels;
+      }
+      if (data.trains && Array.isArray(data.trains)) {
+        trains = data.trains;
+      }
+
+      return true;
+    } catch (e) {
+      console.warn('Laden fehlgeschlagen:', e);
+      return false;
+    }
+  }
+
+  function scheduleSave() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(function() {
+      saveData();
+    }, 500);
+  }
+
+  function showSaveIndicator() {
+    var indicator = document.getElementById('saveIndicator');
+    indicator.classList.add('show');
+    setTimeout(function() {
+      indicator.classList.remove('show');
+    }, 1500);
+  }
+
+  // ========== HILFSFUNKTIONEN ==========
 
   function getColor(type) {
     if (!type) return trainColors['default'];
@@ -331,17 +459,21 @@ input[type="text"], input[type="time"] { width: 100%; }
     el.appendChild(span);
   }
 
+  // ========== ZUG-VERWALTUNG ==========
+
   window.addTrain = function() {
     var id = 'train_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     trains.push({ id: id, number: '', type: '', stops: {} });
     renderTrains();
     draw();
+    scheduleSave();
   };
 
   function removeTrain(id) {
     trains = trains.filter(function(t) { return t.id !== id; });
     renderTrains();
     draw();
+    scheduleSave();
   }
 
   function updateTrain(id, field, value) {
@@ -351,6 +483,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         break;
       }
     }
+    scheduleSave();
   }
 
   function updateStop(trainId, station, field, value) {
@@ -363,6 +496,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         break;
       }
     }
+    scheduleSave();
   }
 
   function renderTrains() {
@@ -380,7 +514,7 @@ input[type="text"], input[type="time"] { width: 100%; }
 
       var numInput = document.createElement('input');
       numInput.type = 'text';
-      numInput.placeholder = 'Zugnummer (z.B. ICE 571)';
+      numInput.placeholder = 'Zugnummer';
       numInput.value = train.number;
       numInput.style.flex = '1';
       numInput.setAttribute('data-id', train.id);
@@ -390,9 +524,9 @@ input[type="text"], input[type="time"] { width: 100%; }
 
       var typeInput = document.createElement('input');
       typeInput.type = 'text';
-      typeInput.placeholder = 'Zugart (ICE/IC/RE/RB/S)';
+      typeInput.placeholder = 'Zugart';
       typeInput.value = train.type;
-      typeInput.style.flex = '0.7';
+      typeInput.style.flex = '0.6';
       typeInput.setAttribute('data-id', train.id);
       typeInput.oninput = function() {
         updateTrain(this.getAttribute('data-id'), 'type', this.value);
@@ -420,11 +554,11 @@ input[type="text"], input[type="time"] { width: 100%; }
         h1.textContent = 'Station';
         var h2 = document.createElement('div');
         h2.className = 'st-header';
-        h2.textContent = 'Ankunft';
+        h2.textContent = 'Ank';
         h2.style.textAlign = 'center';
         var h3 = document.createElement('div');
         h3.className = 'st-header';
-        h3.textContent = 'Abfahrt';
+        h3.textContent = 'Abf';
         h3.style.textAlign = 'center';
         grid.appendChild(h1);
         grid.appendChild(h2);
@@ -467,7 +601,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         div.appendChild(grid);
       } else {
         var hint = document.createElement('div');
-        hint.style.cssText = 'color:#888; font-size:12px; padding:8px;';
+        hint.style.cssText = 'color:#888; font-size:13px; padding:10px;';
         hint.textContent = 'Bitte zuerst Bahnhöfe eingeben.';
         div.appendChild(hint);
       }
@@ -524,27 +658,37 @@ input[type="text"], input[type="time"] { width: 100%; }
 
     renderTrains();
     draw();
+    scheduleSave();
   };
 
   window.clearAll = function() {
+    if (trains.length > 0 || document.getElementById('stations').value) {
+      if (!confirm('Alle Daten löschen?')) return;
+    }
     trains = [];
     document.getElementById('stations').value = '';
     document.getElementById('timeStart').value = '06:00';
     document.getElementById('timeEnd').value = '22:00';
+    document.getElementById('gridMinutes').value = '15';
+    document.getElementById('showLabels').value = 'yes';
     renderTrains();
     draw();
+    scheduleSave();
   };
+
+  // ========== CANVAS ==========
 
   function resizeCanvas() {
     var wrapper = canvas.parentElement;
     var rect = wrapper.getBoundingClientRect();
     var w = rect.width || wrapper.offsetWidth || 600;
-    var h = rect.height || wrapper.offsetHeight || 500;
+    var h = rect.height || wrapper.offsetHeight || 400;
 
-    if (w < 200) w = 600;
-    if (h < 200) h = 500;
+    if (w < 100) w = 600;
+    if (h < 100) h = 400;
 
     dpr = window.devicePixelRatio || 1;
+    if (dpr > 2) dpr = 2;
 
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
@@ -576,9 +720,9 @@ input[type="text"], input[type="time"] { width: 100%; }
       var W = canvas.width / dpr;
       var H = canvas.height / dpr;
 
-      var marginLeft = 55;
-      var marginRight = 25;
-      var marginTop = 50;
+      var marginLeft = 50;
+      var marginRight = 20;
+      var marginTop = 45;
       var marginBottom = 25;
 
       var plotW = W - marginLeft - marginRight;
@@ -593,7 +737,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('Bitte Bahnhöfe eingeben', W / 2, H / 2);
-        setStatus('OK – neu gezeichnet (#' + drawCounter + ') – Keine Bahnhöfe', false);
+        setStatus('OK – gezeichnet (#' + drawCounter + ') – Keine Bahnhöfe', false);
         return;
       }
 
@@ -619,8 +763,6 @@ input[type="text"], input[type="time"] { width: 100%; }
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
 
-      var labelEvery = gridMin >= 15 ? gridMin : 30;
-
       for (var t = range.start; t <= range.end; t += gridMin) {
         var y = sharpLine(timeToY(t));
         var minInHour = t % 60;
@@ -632,7 +774,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         ctx.lineTo(marginLeft + plotW, y);
 
         if (isHour) {
-          ctx.strokeStyle = '#555';
+          ctx.strokeStyle = '#444';
           ctx.lineWidth = 1.5;
         } else if (isHalfHour) {
           ctx.strokeStyle = '#888';
@@ -646,9 +788,9 @@ input[type="text"], input[type="time"] { width: 100%; }
         // Beschriftung
         var shouldLabel = (gridMin >= 15) || ((t - range.start) % 30 === 0) || isHour;
         if (shouldLabel) {
-          ctx.fillStyle = isHour ? '#222' : '#555';
+          ctx.fillStyle = isHour ? '#111' : '#555';
           ctx.font = isHour ? 'bold 11px sans-serif' : '10px sans-serif';
-          ctx.fillText(formatTime(t), marginLeft - 6, timeToY(t));
+          ctx.fillText(formatTime(t), marginLeft - 5, timeToY(t));
         }
       }
 
@@ -659,7 +801,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         ctx.beginPath();
         ctx.moveTo(x, marginTop);
         ctx.lineTo(x, marginTop + plotH);
-        ctx.strokeStyle = '#aaa';
+        ctx.strokeStyle = '#999';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -667,12 +809,12 @@ input[type="text"], input[type="time"] { width: 100%; }
       // Stationsnamen oben
       ctx.textBaseline = 'bottom';
       ctx.font = '11px sans-serif';
-      ctx.fillStyle = '#222';
+      ctx.fillStyle = '#111';
 
       for (var i = 0; i < stations.length; i++) {
         var x = stationToX(i);
         ctx.save();
-        ctx.translate(x, marginTop - 6);
+        ctx.translate(x, marginTop - 5);
         ctx.rotate(-Math.PI / 4);
         ctx.textAlign = 'left';
         ctx.fillText(stations[i], 0, 0);
@@ -680,22 +822,9 @@ input[type="text"], input[type="time"] { width: 100%; }
       }
 
       // Rahmen um Plotbereich
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
       ctx.strokeRect(sharpCoord(marginLeft), sharpCoord(marginTop), sharpCoord(plotW), sharpCoord(plotH));
-
-      // Achsenbeschriftungen
-      ctx.save();
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillStyle = '#333';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText('Strecke →', marginLeft + plotW / 2, marginTop + plotH + 8);
-
-      ctx.translate(12, marginTop + plotH / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText('Zeit ↓', 0, 0);
-      ctx.restore();
 
       // Züge zeichnen
       for (var ti = 0; ti < trains.length; ti++) {
@@ -785,7 +914,6 @@ input[type="text"], input[type="time"] { width: 100%; }
           var dy = timeToY(p2.t) - timeToY(p1.t);
           var angle = Math.atan2(dy, dx);
 
-          // Hintergrund für Lesbarkeit
           ctx.save();
           ctx.translate(mx, my);
           ctx.rotate(angle);
@@ -793,8 +921,8 @@ input[type="text"], input[type="time"] { width: 100%; }
           ctx.font = 'bold 10px sans-serif';
           var textWidth = ctx.measureText(train.number).width;
 
-          ctx.fillStyle = 'rgba(255,255,255,0.85)';
-          ctx.fillRect(-2, -12, textWidth + 4, 14);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.fillRect(-3, -13, textWidth + 6, 15);
 
           ctx.fillStyle = color;
           ctx.textAlign = 'left';
@@ -804,7 +932,7 @@ input[type="text"], input[type="time"] { width: 100%; }
         }
       }
 
-      var statusMsg = 'OK – neu gezeichnet (#' + drawCounter + ')';
+      var statusMsg = 'OK – gezeichnet (#' + drawCounter + ')';
       if (trains.length > 0) {
         statusMsg += ' – ' + trains.length + ' Zug/Züge';
       }
@@ -857,6 +985,8 @@ input[type="text"], input[type="time"] { width: 100%; }
     }
   };
 
+  // ========== EVENT-LISTENER ==========
+
   function setupAutoRedraw() {
     var ids = ['stations', 'timeStart', 'timeEnd', 'gridMinutes', 'showLabels'];
     for (var i = 0; i < ids.length; i++) {
@@ -865,16 +995,20 @@ input[type="text"], input[type="time"] { width: 100%; }
         el.addEventListener('change', function() {
           renderTrains();
           draw();
+          scheduleSave();
         });
         if (el.tagName === 'TEXTAREA') {
           el.addEventListener('input', function() {
             renderTrains();
             draw();
+            scheduleSave();
           });
         }
       }
     }
   }
+
+  // ========== INITIALISIERUNG ==========
 
   function init() {
     canvas = document.getElementById('canvas');
@@ -884,14 +1018,38 @@ input[type="text"], input[type="time"] { width: 100%; }
     }
     ctx = canvas.getContext('2d');
 
+    // Gespeicherte Daten laden
+    var hasData = loadData();
+
     setupAutoRedraw();
 
     window.addEventListener('resize', function() {
       draw();
     });
 
-    // Kein Beispiel laden - leerer Start
+    // Speichern bei Seitenverlassen
+    window.addEventListener('beforeunload', function() {
+      saveData();
+    });
+
+    // Speichern bei Visibility Change (wichtig für mobile)
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') {
+        saveData();
+      }
+    });
+
+    // Speichern bei Pause (Android)
+    window.addEventListener('pagehide', function() {
+      saveData();
+    });
+
+    renderTrains();
     draw();
+
+    if (hasData) {
+      setStatus('Gespeicherte Daten geladen – ' + trains.length + ' Züge', false);
+    }
   }
 
   if (document.readyState === 'loading') {
