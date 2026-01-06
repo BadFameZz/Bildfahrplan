@@ -682,8 +682,6 @@ select {
       var labels = showLabels();
 
       var W = canvas.width / dpr, H = canvas.height / dpr;
-      var mL = 48, mR = 16, mT = 42, mB = 20;
-      var pW = W - mL - mR, pH = H - mT - mB;
 
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, W, H);
@@ -697,6 +695,21 @@ select {
         setStatus('Gezeichnet #' + drawCounter + ' – Keine Bahnhöfe');
         return;
       }
+
+      // Berechne benötigten Platz für Stationsnamen (45° gedreht)
+      ctx.font = 'bold 12px sans-serif';
+      var maxStationWidth = 0;
+      stations.forEach(function(st) {
+        var w = ctx.measureText(st).width;
+        if (w > maxStationWidth) maxStationWidth = w;
+      });
+      // Bei 45° Rotation: Höhe = Breite * sin(45°) ≈ 0.71
+      var stationHeaderHeight = Math.ceil(maxStationWidth * 0.71) + 15;
+      if (stationHeaderHeight < 60) stationHeaderHeight = 60;
+      if (stationHeaderHeight > 150) stationHeaderHeight = 150;
+
+      var mL = 52, mR = 20, mT = stationHeaderHeight, mB = 20;
+      var pW = W - mL - mR, pH = H - mT - mB;
 
       var totalMin = range.end - range.start || 60;
 
@@ -732,8 +745,8 @@ select {
         var shouldLabel = gridMin >= 15 || (t - range.start) % 30 === 0 || isHour;
         if (shouldLabel) {
           ctx.fillStyle = isHour ? '#202124' : '#5f6368';
-          ctx.font = isHour ? 'bold 11px sans-serif' : '10px sans-serif';
-          ctx.fillText(formatTime(t), mL - 4, timeToY(t));
+          ctx.font = isHour ? 'bold 12px sans-serif' : '11px sans-serif';
+          ctx.fillText(formatTime(t), mL - 6, timeToY(t));
         }
       }
 
@@ -749,11 +762,11 @@ select {
       }
 
       // Station names
-      ctx.font = '11px sans-serif';
+      ctx.font = 'bold 12px sans-serif';
       ctx.fillStyle = '#202124';
       for (var i = 0; i < stations.length; i++) {
         ctx.save();
-        ctx.translate(stationToX(i), mT - 4);
+        ctx.translate(stationToX(i), mT - 8);
         ctx.rotate(-Math.PI / 4);
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
@@ -831,10 +844,10 @@ select {
           ctx.save();
           ctx.translate(mx, my);
           ctx.rotate(angle);
-          ctx.font = 'bold 10px sans-serif';
+          ctx.font = 'bold 11px sans-serif';
           var tw = ctx.measureText(train.number).width;
-          ctx.fillStyle = 'rgba(255,255,255,0.92)';
-          ctx.fillRect(-3, -13, tw + 6, 15);
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.fillRect(-4, -14, tw + 8, 17);
           ctx.fillStyle = color;
           ctx.textAlign = 'left';
           ctx.textBaseline = 'bottom';
