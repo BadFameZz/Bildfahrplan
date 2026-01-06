@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bildfahrplan-Generator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  min-height: 100vh;
+}
+.panel-left {
+  flex: 0 0 320px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-height: 100vh;
+  overflow-y: auto;
+}
+.panel-right {
+  flex: 1;
+  min-width: 400px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+}
+h2 { font-size: 16px; margin-bottom: 10px; color: #333; }
+h3 { font-size: 14px; margin: 15px 0 8px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+label { display: block; margin-bottom: 4px; font-weight: 500; color: #444; }
+textarea, input, select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+textarea { resize: vertical; min-height: 80px; }
+input[type="text"], input[type="time"] { width: 100%; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+.btn {
+  display: inline-block;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  margin: 3px;
+  transition: opacity 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #007bff; color: #fff; }
+.btn-success { background: #28a745; color: #fff; }
+.btn-warning { background: #ffc107; color: #333; }
+.btn-danger { background: #dc3545; color: #fff; }
+.btn-info { background: #17a2b8; color: #fff; }
+.buttons { margin: 10px 0; display: flex; flex-wrap: wrap; }
+.zug-container {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.zug-header { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.zug-header input { margin-bottom: 0; }
+.zug-header .btn { margin: 0; padding: 4px 8px; font-size: 12px; }
+.station-times { display: grid; grid-template-columns: 1fr 70px 70px; gap: 4px; align-items: center; font-size: 12px; }
+.station-times .st-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.station-times input { padding: 4px; font-size: 12px; margin-bottom: 0; }
+.canvas-wrapper {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+#status {
+  margin-top: 10px;
+  padding: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+  max-height: 80px;
+  overflow-y: auto;
+}
+.status-ok { color: #28a745; }
+.status-warn { color: #dc3545; }
+@media (max-width: 800px) {
+  .container { flex-direction: column; }
+  .panel-left { flex: none; max-height: none; }
+  .panel-right { min-width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel-left">
+    <h2>Bildfahrplan-Generator</h2>
+
+    <label for="stations">Bahnhöfe (eine pro Zeile):</label>
+    <textarea id="stations" placeholder="Hamburg&#10;Berlin&#10;Leipzig&#10;München"></textarea>
+
+    <div class="row">
+      <div>
+        <label for="timeStart">Zeitraum Start:</label>
+        <input type="time" id="timeStart" value="06:00">
+      </div>
+      <div>
+        <label for="timeEnd">Zeitraum Ende:</label>
+        <input type="time" id="timeEnd" value="22:00">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="gridMinutes">Raster-Minuten:</label>
+        <select id="gridMinutes">
+          <option value="5">5 min</option>
+          <option value="10">10 min</option>
+          <option value="15" selected>15 min</option>
+          <option value="30">30 min</option>
+        </select>
+      </div>
+      <div>
+        <label for="showLabels">Zugnummer:</label>
+        <select id="showLabels">
+          <option value="yes">Ja</option>
+          <option value="no">Nein</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn btn-primary" onclick="addTrain()">+ Zug hinzufügen</button>
+      <button class="btn btn-info" onclick="loadExample()">Beispiel laden</button>
+      <button class="btn btn-danger" onclick="clearAll()">Alles leeren</button>
+      <button class="btn btn-warning" onclick="draw()">Neu zeichnen</button>
+      <button class="btn btn-success" onclick="exportPNG()">PNG exportieren</button>
+    </div>
+
+    <h3>Züge</h3>
+    <div id="trains"></div>
+  </div>
+
+  <div class="panel-right">
+    <h2>Diagramm</h2>
+    <div class="canvas-wrapper">
+      <canvas id="canvas"></canvas>
+    </div>
+    <div id="status">Bereit.</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var trains = [];
+  var drawCounter = 0;
+  var canvas, ctx;
+
+  // Farben nach Zugart
+  var trainColors = {
+    'ICE': '#d32f2f',
+    'IC': '#c62828',
+    'EC': '#c62828',
+    'RE': '#1565c0',
+    'RB': '#2e7d32',
+    'S': '#f9a825',
+    'default': '#7b1fa2'
+  };
+
+  function getColor(type) {
+    if (!type) return trainColors['default'];
+    var t = type.toUpperCase().trim();
+    if (t.indexOf('ICE') === 0) return trainColors['ICE'];
+    if (t.indexOf('IC') === 0 || t.indexOf('EC') === 0) return trainColors['IC'];
+    if (t.indexOf('RE') === 0) return trainColors['RE'];
+    if (t.indexOf('RB') === 0) return trainColors['RB'];
+    if (t.indexOf('S') === 0 && t.length <= 3) return trainColors['S'];
+    return trainColors['default'];
+  }
+
+  function parseTime(str) {
+    if (!str || typeof str !== 'string') return null;
+    str = str.trim();
+    var m = str.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    var h = parseInt(m[1], 10);
+    var min = parseInt(m[2], 10);
+    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return h * 60 + min;
+  }
+
+  function formatTime(minutes) {
+    var h = Math.floor(minutes / 60) % 24;
+    var m = minutes % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  function getStations() {
+    var text = document.getElementById('stations').value;
+    var lines = text.split('\n');
+    var result = [];
+    for (var i = 0; i < lines.length; i++) {
+      var s = lines[i].trim();
+      if (s) result.push(s);
+    }
+    return result;
+  }
+
+  function getTimeRange() {
+    var startStr = document.getElementById('timeStart').value;
+    var endStr = document.getElementById('timeEnd').value;
+    var start = parseTime(startStr);
+    var end = parseTime(endStr);
+    if (start === null) start = 6 * 60;
+    if (end === null) end = 22 * 60;
+    if (end <= start) end += 24 * 60; // nächster Tag
+    return { start: start, end: end };
+  }
+
+  function getGridMinutes() {
+    return parseInt(document.getElementById('gridMinutes').value, 10) || 15;
+  }
+
+  function showLabels() {
+    return document.getElementById('showLabels').value === 'yes';
+  }
+
+  function setStatus(msg, isWarning) {
+    var el = document.getElementById('status');
+    el.innerHTML = '';
+    var span = document.createElement('span');
+    span.className = isWarning ? 'status-warn' : 'status-ok';
+    span.textContent = msg;
+    el.appendChild(span);
+  }
+
+  function addWarning(msg) {
+    var el = document.getElementById('status');
+    var br = document.createElement('br');
+    var span = document.createElement('span');
+    span.className = 'status-warn';
+    span.textContent = '⚠ ' + msg;
+    el.appendChild(br);
+    el.appendChild(span);
+  }
+
+  window.addTrain = function() {
+    var id = 'train_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    trains.push({ id: id, number: '', type: '', stops: {} });
+    renderTrains();
+    draw();
+  };
+
+  function removeTrain(id) {
+    trains = trains.filter(function(t) { return t.id !== id; });
+    renderTrains();
+    draw();
+  }
+
+  function updateTrain(id, field, value) {
+    for (var i = 0; i < trains.length; i++) {
+      if (trains[i].id === id) {
+        trains[i][field] = value;
+        break;
+      }
+    }
+  }
+
+  function updateStop(trainId, station, field, value) {
+    for (var i = 0; i < trains.length; i++) {
+      if (trains[i].id === trainId) {
+        if (!trains[i].stops[station]) {
+          trains[i].stops[station] = { arr: '', dep: '' };
+        }
+        trains[i].stops[station][field] = value;
+        break;
+      }
+    }
+  }
+
+  function renderTrains() {
+    var container = document.getElementById('trains');
+    container.innerHTML = '';
+    var stations = getStations();
+
+    for (var i = 0; i < trains.length; i++) {
+      var train = trains[i];
+      var div = document.createElement('div');
+      div.className = 'zug-container';
+
+      var header = document.createElement('div');
+      header.className = 'zug-header';
+
+      var numInput = document.createElement('input');
+      numInput.type = 'text';
+      numInput.placeholder = 'Zugnummer';
+      numInput.value = train.number;
+      numInput.style.flex = '1';
+      numInput.setAttribute('data-id', train.id);
+      numInput.oninput = function() {
+        updateTrain(this.getAttribute('data-id'), 'number', this.value);
+      };
+
+      var typeInput = document.createElement('input');
+      typeInput.type = 'text';
+      typeInput.placeholder = 'Zugart';
+      typeInput.value = train.type;
+      typeInput.style.flex = '1';
+      typeInput.setAttribute('data-id', train.id);
+      typeInput.oninput = function() {
+        updateTrain(this.getAttribute('data-id'), 'type', this.value);
+      };
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-danger';
+      delBtn.textContent = '×';
+      delBtn.setAttribute('data-id', train.id);
+      delBtn.onclick = function() {
+        removeTrain(this.getAttribute('data-id'));
+      };
+
+      header.appendChild(numInput);
+      header.appendChild(typeInput);
+      header.appendChild(delBtn);
+      div.appendChild(header);
+
+      if (stations.length > 0) {
+        var grid = document.createElement('div');
+        grid.className = 'station-times';
+
+        // Header
+        var h1 = document.createElement('div');
+        h1.className = 'st-name';
+        h1.textContent = 'Station';
+        var h2 = document.createElement('div');
+        h2.textContent = 'Ank';
+        h2.style.fontWeight = '500';
+        h2.style.textAlign = 'center';
+        var h3 = document.createElement('div');
+        h3.textContent = 'Abf';
+        h3.style.fontWeight = '500';
+        h3.style.textAlign = 'center';
+        grid.appendChild(h1);
+        grid.appendChild(h2);
+        grid.appendChild(h3);
+
+        for (var j = 0; j < stations.length; j++) {
+          var st = stations[j];
+          var stop = train.stops[st] || { arr: '', dep: '' };
+
+          var nameDiv = document.createElement('div');
+          nameDiv.className = 'st-name';
+          nameDiv.textContent = st;
+          nameDiv.title = st;
+
+          var arrInput = document.createElement('input');
+          arrInput.type = 'time';
+          arrInput.value = stop.arr;
+          arrInput.setAttribute('data-train', train.id);
+          arrInput.setAttribute('data-station', st);
+          arrInput.onchange = function() {
+            updateStop(this.getAttribute('data-train'), this.getAttribute('data-station'), 'arr', this.value);
+            draw();
+          };
+
+          var depInput = document.createElement('input');
+          depInput.type = 'time';
+          depInput.value = stop.dep;
+          depInput.setAttribute('data-train', train.id);
+          depInput.setAttribute('data-station', st);
+          depInput.onchange = function() {
+            updateStop(this.getAttribute('data-train'), this.getAttribute('data-station'), 'dep', this.value);
+            draw();
+          };
+
+          grid.appendChild(nameDiv);
+          grid.appendChild(arrInput);
+          grid.appendChild(depInput);
+        }
+
+        div.appendChild(grid);
+      }
+
+      container.appendChild(div);
+    }
+  }
+
+  window.loadExample = function() {
+    document.getElementById('stations').value = 'Hamburg Hbf\nHannover Hbf\nGöttingen\nKassel-Wilhelmshöhe\nFulda\nFrankfurt Hbf';
+    document.getElementById('timeStart').value = '08:00';
+    document.getElementById('timeEnd').value = '12:00';
+    document.getElementById('gridMinutes').value = '15';
+
+    trains = [
+      {
+        id: 'ex1',
+        number: 'ICE 571',
+        type: 'ICE',
+        stops: {
+          'Hamburg Hbf': { arr: '', dep: '08:15' },
+          'Hannover Hbf': { arr: '09:05', dep: '09:10' },
+          'Göttingen': { arr: '09:35', dep: '09:37' },
+          'Kassel-Wilhelmshöhe': { arr: '09:55', dep: '09:57' },
+          'Fulda': { arr: '10:25', dep: '10:27' },
+          'Frankfurt Hbf': { arr: '11:00', dep: '' }
+        }
+      },
+      {
+        id: 'ex2',
+        number: 'ICE 574',
+        type: 'ICE',
+        stops: {
+          'Frankfurt Hbf': { arr: '', dep: '09:00' },
+          'Fulda': { arr: '09:33', dep: '09:35' },
+          'Kassel-Wilhelmshöhe': { arr: '10:03', dep: '10:05' },
+          'Göttingen': { arr: '10:23', dep: '10:25' },
+          'Hannover Hbf': { arr: '10:50', dep: '10:55' },
+          'Hamburg Hbf': { arr: '11:45', dep: '' }
+        }
+      },
+      {
+        id: 'ex3',
+        number: 'RE 5',
+        type: 'RE',
+        stops: {
+          'Hamburg Hbf': { arr: '', dep: '08:30' },
+          'Hannover Hbf': { arr: '10:00', dep: '10:10' },
+          'Göttingen': { arr: '10:55', dep: '11:00' },
+          'Kassel-Wilhelmshöhe': { arr: '11:30', dep: '' }
+        }
+      }
+    ];
+
+    renderTrains();
+    draw();
+  };
+
+  window.clearAll = function() {
+    trains = [];
+    document.getElementById('stations').value = '';
+    renderTrains();
+    draw();
+  };
+
+  function resizeCanvas() {
+    var wrapper = canvas.parentElement;
+    var rect = wrapper.getBoundingClientRect();
+    var w = rect.width || wrapper.offsetWidth || window.innerWidth * 0.6;
+    var h = rect.height || wrapper.offsetHeight || 400;
+
+    if (w < 100) w = 400;
+    if (h < 100) h = 400;
+
+    canvas.width = Math.floor(w);
+    canvas.height = Math.floor(h);
+  }
+
+  window.draw = function() {
+    try {
+      resizeCanvas();
+      drawCounter++;
+
+      var stations = getStations();
+      var range = getTimeRange();
+      var gridMin = getGridMinutes();
+      var labels = showLabels();
+      var warnings = [];
+
+      var W = canvas.width;
+      var H = canvas.height;
+
+      // Margins
+      var marginLeft = 60;
+      var marginRight = 20;
+      var marginTop = 30;
+      var marginBottom = 20;
+
+      var plotW = W - marginLeft - marginRight;
+      var plotH = H - marginTop - marginBottom;
+
+      // Clear
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, W, H);
+
+      if (stations.length === 0) {
+        ctx.fillStyle = '#999';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Bitte Bahnhöfe eingeben', W / 2, H / 2);
+        setStatus('OK – neu gezeichnet (#' + drawCounter + ') - Keine Bahnhöfe', false);
+        return;
+      }
+
+      var totalMinutes = range.end - range.start;
+      if (totalMinutes <= 0) totalMinutes = 60;
+
+      function timeToY(t) {
+        var normalized = t - range.start;
+        if (normalized < 0) normalized += 24 * 60;
+        return marginTop + (normalized / totalMinutes) * plotH;
+      }
+
+      function stationToX(idx) {
+        if (stations.length === 1) return marginLeft + plotW / 2;
+        return marginLeft + (idx / (stations.length - 1)) * plotW;
+      }
+
+      // Raster zeichnen - Zeit (horizontal)
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+
+      var labelEvery = gridMin >= 15 ? gridMin : 30;
+
+      for (var t = range.start; t <= range.end; t += gridMin) {
+        var y = timeToY(t);
+        var minInHour = t % 60;
+        var isHour = minInHour === 0;
+        var isHalfHour = minInHour === 30;
+
+        if (isHour) {
+          ctx.strokeStyle = '#666';
+          ctx.lineWidth = 1.5;
+        } else if (isHalfHour) {
+          ctx.strokeStyle = '#999';
+          ctx.lineWidth = 1;
+        } else {
+          ctx.strokeStyle = '#ddd';
+          ctx.lineWidth = 0.5;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, y);
+        ctx.lineTo(W - marginRight, y);
+        ctx.stroke();
+
+        // Beschriftung
+        if ((t - range.start) % labelEvery === 0 || isHour) {
+          ctx.fillStyle = '#333';
+          ctx.font = isHour ? 'bold 11px sans-serif' : '10px sans-serif';
+          ctx.fillText(formatTime(t % (24 * 60)), marginLeft - 5, y);
+        }
+      }
+
+      // Stationen-Raster (vertikal)
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '11px sans-serif';
+
+      for (var i = 0; i < stations.length; i++) {
+        var x = stationToX(i);
+
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, marginTop);
+        ctx.lineTo(x, H - marginBottom);
+        ctx.stroke();
+
+        // Stationsname
+        ctx.fillStyle = '#333';
+        ctx.save();
+        ctx.translate(x, marginTop - 5);
+        ctx.rotate(-Math.PI / 6);
+        ctx.textAlign = 'left';
+        ctx.fillText(stations[i], 0, 0);
+        ctx.restore();
+      }
+
+      // Rahmen
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(marginLeft, marginTop, plotW, plotH);
+
+      // Züge zeichnen
+      for (var ti = 0; ti < trains.length; ti++) {
+        var train = trains[ti];
+        var color = getColor(train.type);
+        var points = [];
+
+        // Punkte sammeln
+        for (var si = 0; si < stations.length; si++) {
+          var st = stations[si];
+          var stop = train.stops[st];
+          if (!stop) continue;
+
+          var arr = parseTime(stop.arr);
+          var dep = parseTime(stop.dep);
+
+          if (arr === null && dep === null) continue;
+
+          var x = stationToX(si);
+
+          if (arr !== null && dep !== null) {
+            // Halt: Ankunft und Abfahrt
+            points.push({ x: x, t: arr, type: 'arr', station: si });
+            points.push({ x: x, t: dep, type: 'dep', station: si });
+          } else if (arr !== null) {
+            points.push({ x: x, t: arr, type: 'single', station: si });
+          } else if (dep !== null) {
+            points.push({ x: x, t: dep, type: 'single', station: si });
+          }
+        }
+
+        if (points.length === 0) continue;
+
+        // Mitternachts-Korrektur
+        var lastT = null;
+        for (var pi = 0; pi < points.length; pi++) {
+          if (lastT !== null) {
+            while (points[pi].t < lastT - 60) {
+              points[pi].t += 24 * 60;
+            }
+            if (points[pi].t < lastT && points[pi].type !== 'dep') {
+              warnings.push(train.number + ': Zeit nicht chronologisch bei Station ' + stations[points[pi].station]);
+            }
+          }
+          lastT = points[pi].t;
+        }
+
+        // Linie zeichnen
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (var pi = 0; pi < points.length; pi++) {
+          var pt = points[pi];
+          var y = timeToY(pt.t);
+
+          if (pi === 0) {
+            ctx.moveTo(pt.x, y);
+          } else {
+            ctx.lineTo(pt.x, y);
+          }
+        }
+        ctx.stroke();
+
+        // Punkte zeichnen
+        ctx.fillStyle = color;
+        for (var pi = 0; pi < points.length; pi++) {
+          var pt = points[pi];
+          var y = timeToY(pt.t);
+          ctx.beginPath();
+          ctx.arc(pt.x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Beschriftung
+        if (labels && train.number && points.length > 0) {
+          var midIdx = Math.floor(points.length / 2);
+          var midPt = points[midIdx];
+          var midY = timeToY(midPt.t);
+
+          ctx.save();
+          ctx.fillStyle = color;
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+
+          // Winkel berechnen
+          var angle = 0;
+          if (points.length >= 2) {
+            var p1 = points[Math.max(0, midIdx - 1)];
+            var p2 = points[Math.min(points.length - 1, midIdx)];
+            if (p1 !== p2) {
+              var dx = p2.x - p1.x;
+              var dy = timeToY(p2.t) - timeToY(p1.t);
+              angle = Math.atan2(dy, dx);
+            }
+          }
+
+          ctx.translate(midPt.x + 5, midY - 5);
+          ctx.rotate(angle);
+          ctx.fillText(train.number, 0, 0);
+          ctx.restore();
+        }
+      }
+
+      var statusMsg = 'OK – neu gezeichnet (#' + drawCounter + ')';
+      setStatus(statusMsg, false);
+
+      for (var wi = 0; wi < warnings.length; wi++) {
+        addWarning(warnings[wi]);
+      }
+
+    } catch (e) {
+      setStatus('Fehler: ' + e.message, true);
+    }
+  };
+
+  window.exportPNG = function() {
+    try {
+      draw();
+
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          try {
+            if (canvas.width === 0 || canvas.height === 0) {
+              canvas.width = 800;
+              canvas.height = 600;
+              draw();
+            }
+
+            var dataURL = canvas.toDataURL('image/png');
+
+            var link = document.createElement('a');
+            link.download = 'bildfahrplan_' + Date.now() + '.png';
+            link.href = dataURL;
+
+            if (typeof link.click === 'function') {
+              link.click();
+            } else {
+              window.open(dataURL, '_blank');
+            }
+
+            setStatus('PNG exportiert (#' + drawCounter + ')', false);
+          } catch (e) {
+            setStatus('Export-Fehler: ' + e.message, true);
+          }
+        });
+      });
+    } catch (e) {
+      setStatus('Export-Fehler: ' + e.message, true);
+    }
+  };
+
+  // Event-Listener für automatisches Neuzeichnen
+  function setupAutoRedraw() {
+    var ids = ['stations', 'timeStart', 'timeEnd', 'gridMinutes', 'showLabels'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el) {
+        el.addEventListener('change', function() {
+          renderTrains();
+          draw();
+        });
+        if (el.tagName === 'TEXTAREA') {
+          el.addEventListener('input', function() {
+            renderTrains();
+            draw();
+          });
+        }
+      }
+    }
+  }
+
+  // Initialisierung
+  function init() {
+    canvas = document.getElementById('canvas');
+    if (!canvas) {
+      console.error('Canvas nicht gefunden');
+      return;
+    }
+    ctx = canvas.getContext('2d');
+
+    setupAutoRedraw();
+
+    window.addEventListener('resize', function() {
+      draw();
+    });
+
+    // Beispiel automatisch laden
+    loadExample();
+  }
+
+  // Start
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
